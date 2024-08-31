@@ -5,6 +5,12 @@ const config = require('./config/config.cjs');
 
 let authClient;
 let mainWindow;
+let storeModule;
+
+// Динамический импорт ESM модуля
+import('./services/store.mjs').then(module => {
+  storeModule = module;
+});
 
 function setAuthResult(result, profileData) {
   if (mainWindow) {
@@ -39,6 +45,29 @@ function createWindow() {
   // Обработчик события для открытия окна авторизации
   ipcMain.on('open-auth-window', () => {
     authClient.openBrowser();
+  });
+
+  // Новый обработчик для сохранения данных пользователя
+  ipcMain.on('save-user-data', (event, userData) => {
+    if (storeModule) {
+      storeModule.setUser(userData);
+    }
+  });
+
+  // Обработчик для получения сохраненного пользователя
+  ipcMain.handle('get-stored-user', async () => {
+    if (storeModule) {
+      return storeModule.getUser();
+    }
+    return null;
+  });
+
+  // Обработчик для выхода пользователя
+  ipcMain.on('logout', () => {
+    if (storeModule) {
+      storeModule.clearUser();
+    }
+    mainWindow.webContents.send('user-logged-out');
   });
 }
 

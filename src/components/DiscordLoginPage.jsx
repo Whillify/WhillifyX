@@ -22,10 +22,13 @@ const LoginPage = ({ onLogin }) => {
   React.useEffect(() => {
     const authResultListener = (event, result, profileData) => {
       if (result === true) {
-        onLogin({ username: profileData.global_name });
+        // Сохраняем полные данные профиля в хранилище
+        ipcRenderer.send('save-user-data', profileData);
+        
+        onLogin({ username: profileData.username });
         toast({
           title: "Вход выполнен успешно",
-          description: `Добро пожаловать, ${profileData.global_name}`,
+          description: `Добро пожаловать, ${profileData.username}`,
           status: "success",
           duration: 3000,
           isClosable: true,
