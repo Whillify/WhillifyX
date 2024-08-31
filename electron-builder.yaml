@@ -1,0 +1,11 @@
+appId: com.yourcompany.whillifyx
+productName: WhillifyX
+directories:
+  output: release/
+  buildResources: resources/
+files:
+  - from: .
+    filter:
+      - package.json
+      - app
+publish: null
