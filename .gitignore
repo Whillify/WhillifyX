@@ -24,5 +24,7 @@ dist-ssr
 *.sw?
 
 electron/config/config.cjs
+src/components/DiscordLoginPageNew.jsx
+src/components/DiscordLoginPageOld.jsx
 
 DISCORD OAUTH CONFIG

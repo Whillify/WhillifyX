@@ -1,7 +1,27 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  discordAuth: () => ipcRenderer.invoke('discord-auth'),
-  onAuthSuccess: (callback) => ipcRenderer.on('auth-success', (_, userInfo) => callback(userInfo)),
-  onAuthError: (callback) => ipcRenderer.on('auth-error', (_, error) => callback(error))
+  minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  maximizeWindow: () => ipcRenderer.send('maximize-window'),
+  closeWindow: () => ipcRenderer.send('close-window'),
+  saveUserData: (userData) => ipcRenderer.send('save-user-data', userData),
+  getStoredUser: () => ipcRenderer.invoke('get-stored-user'),
+  logout: () => ipcRenderer.send('logout'),
+  discordAuth: () => ipcRenderer.send('open-auth-window'),
+  resetAuthCompleted: () => ipcRenderer.send('reset-auth-completed'),
+  onAuthResult: (callback) => ipcRenderer.on('auth-result', callback),
+  onUserLoggedOut: (callback) => ipcRenderer.on('user-logged-out', callback),
+  removeAuthResultListener: (callback) => ipcRenderer.removeListener('auth-result', callback),
+  getAvatarPath: (userId) => ipcRenderer.invoke('get-avatar-path', userId),
+  getAvatarUrl: (userId) => ipcRenderer.invoke('get-avatar-url', userId),
+  removeUserLoggedOutListener: (callback) => ipcRenderer.removeListener('user-logged-out', callback),
+  isModpackInstalled: (version) => ipcRenderer.invoke('is-modpack-installed', version),
+  downloadModpack: (version) => ipcRenderer.invoke('download-modpack', version),
+  launchMinecraft: (version) => ipcRenderer.invoke('launch-minecraft', version),
+  onDownloadProgress: (callback) => ipcRenderer.on('download-progress', callback),
+  onLaunchProgress: (callback) => ipcRenderer.on('launch-progress', callback),
+  removeDownloadProgressListener: (callback) => ipcRenderer.removeListener('download-progress', callback),
+  removeLaunchProgressListener: (callback) => ipcRenderer.removeListener('launch-progress', callback),
+  getMinecraftSettings: () => ipcRenderer.invoke('get-minecraft-settings'),
+  saveMinecraftSettings: (settings) => ipcRenderer.invoke('save-minecraft-settings', settings),
 });

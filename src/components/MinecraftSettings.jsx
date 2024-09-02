@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   VStack,
@@ -16,16 +16,31 @@ import {
 } from '@chakra-ui/react';
 
 const MinecraftSettings = ({ onClose }) => {
-  const [language, setLanguage] = useState('ru_RU');
-  const [graphicsQuality, setGraphicsQuality] = useState('normal');
-  const [renderDistance, setRenderDistance] = useState(8);
-  const [maxMemory, setMaxMemory] = useState(2);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [settings, setSettings] = useState({
+    language: 'ru_RU',
+    graphicsQuality: 'normal',
+    renderDistance: 8,
+    maxMemory: 2,
+    fullscreen: false,
+  });
 
   const toast = useToast();
 
+  useEffect(() => {
+    // Загрузка настроек при монтировании компонента
+    window.electronAPI.getMinecraftSettings().then(savedSettings => {
+      if (savedSettings) {
+        setSettings(savedSettings);
+      }
+    });
+  }, []);
+
+  const handleChange = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
   const handleSave = () => {
-    // Здесь будет логика сохранения настроек
+    window.electronAPI.saveMinecraftSettings(settings);
     toast({
       title: "Настройки сохранены",
       description: "Ваши настройки были успешно сохранены.",
@@ -51,8 +66,8 @@ const MinecraftSettings = ({ onClose }) => {
         <Box>
           <Text color="gray.300" mb={2}>Язык</Text>
           <Select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            value={settings.language}
+            onChange={(e) => handleChange('language', e.target.value)}
             bg="gray.700"
             color="white"
           >
@@ -65,8 +80,8 @@ const MinecraftSettings = ({ onClose }) => {
         <Box>
           <Text color="gray.300" mb={2}>Качество графики</Text>
           <Select
-            value={graphicsQuality}
-            onChange={(e) => setGraphicsQuality(e.target.value)}
+            value={settings.graphicsQuality}
+            onChange={(e) => handleChange('graphicsQuality', e.target.value)}
             bg="gray.700"
             color="white"
           >
@@ -77,13 +92,13 @@ const MinecraftSettings = ({ onClose }) => {
         </Box>
 
         <Box>
-          <Text color="gray.300" mb={2}>Дальность прорисовки: {renderDistance} чанков</Text>
+          <Text color="gray.300" mb={2}>Дальность прорисовки: {settings.renderDistance} чанков</Text>
           <Slider
             min={2}
             max={32}
             step={1}
-            value={renderDistance}
-            onChange={(value) => setRenderDistance(value)}
+            value={settings.renderDistance}
+            onChange={(value) => handleChange('renderDistance', value)}
           >
             <SliderTrack>
               <SliderFilledTrack />
@@ -93,13 +108,13 @@ const MinecraftSettings = ({ onClose }) => {
         </Box>
 
         <Box>
-          <Text color="gray.300" mb={2}>Максимальный объем памяти: {maxMemory} ГБ</Text>
+          <Text color="gray.300" mb={2}>Максимальный объем памяти: {settings.maxMemory} ГБ</Text>
           <Slider
             min={1}
             max={16}
             step={1}
-            value={maxMemory}
-            onChange={(value) => setMaxMemory(value)}
+            value={settings.maxMemory}
+            onChange={(value) => handleChange('maxMemory', value)}
           >
             <SliderTrack>
               <SliderFilledTrack />
@@ -111,8 +126,8 @@ const MinecraftSettings = ({ onClose }) => {
         <HStack justify="space-between">
           <Text color="gray.300">Полноэкранный режим</Text>
           <Switch
-            isChecked={fullscreen}
-            onChange={(e) => setFullscreen(e.target.checked)}
+            isChecked={settings.fullscreen}
+            onChange={(e) => handleChange('fullscreen', e.target.checked)}
             colorScheme="green"
           />
         </HStack>

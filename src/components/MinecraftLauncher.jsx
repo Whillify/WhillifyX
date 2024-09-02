@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -16,61 +16,62 @@ import {
   ModalBody,
   ModalCloseButton,
   Avatar,
+  Flex,
 } from '@chakra-ui/react';
-import { FaPlay, FaCog, FaUser, FaDownload, FaSignOutAlt, FaNewspaper } from 'react-icons/fa';
+import { FaPlay, FaCog, FaUser, FaSignOutAlt, FaNewspaper, FaDownload } from 'react-icons/fa';
 import LoginPage from './DiscordLoginPage';
 import MinecraftSettings from './MinecraftSettings';
 import UserProfilePage from './UserProfilePage';
 import ProjectBlog from './ProjectBlog';
 
-const { ipcRenderer } = window.require('electron');
-
 const MinecraftLauncher = () => {
   const [user, setUser] = useState(null);
+  const [avatarSrc, setAvatarSrc] = useState(null);
   const [selectedVersion, setSelectedVersion] = useState('1.19.4');
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showBlog, setShowBlog] = useState(false);
+  const [modpackInstalled, setModpackInstalled] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    // Получаем сохраненного пользователя при загрузке компонента
-    ipcRenderer.invoke('get-stored-user').then((storedUser) => {
+    window.electronAPI.getStoredUser().then((storedUser) => {
       if (storedUser) {
         setUser(storedUser);
+        loadAvatar(storedUser.id);
       }
     });
 
-    // Слушаем событие успешной авторизации
-    const authSuccessListener = (event, result, profileData) => {
+    const authSuccessHandler = (event, result, userInfo) => {
       if (result === true) {
-        setUser(profileData);
+        setUser(userInfo);
+        loadAvatar(userInfo.id);
       }
     };
 
-    // Слушаем событие выхода пользователя
-    const userLoggedOutListener = () => {
+    const userLoggedOutHandler = () => {
       setUser(null);
     };
 
-    ipcRenderer.on('auth-result', authSuccessListener);
-    ipcRenderer.on('user-logged-out', userLoggedOutListener);
+    window.electronAPI.onAuthResult(authSuccessHandler);
+    window.electronAPI.onUserLoggedOut(userLoggedOutHandler);
 
     return () => {
-      ipcRenderer.removeListener('auth-result', authSuccessListener);
-      ipcRenderer.removeListener('user-logged-out', userLoggedOutListener);
+      window.electronAPI.removeAuthResultListener(authSuccessHandler);
+      window.electronAPI.removeUserLoggedOutListener(userLoggedOutHandler);
     };
   }, []);
 
-  const handleLogin = (userData) => {
-    // Этот метод теперь не нужен, так как мы обрабатываем вход через слушатель auth-result
-    // Оставим его пустым или уберем совсем, если он больше нигде не используется
+  const loadAvatar = async (userId) => {
+    const avatarUrl = await window.electronAPI.getAvatarUrl(userId);
+    setAvatarSrc(avatarUrl);
   };
 
-  const handleLogout = () => {
-    ipcRenderer.send('logout');
+  const handleLogout = useCallback(() => {
+    window.electronAPI.logout();
     setUser(null);
     toast({
       title: "Выход выполнен",
@@ -79,17 +80,45 @@ const MinecraftLauncher = () => {
       duration: 3000,
       isClosable: true,
     });
-  };
+  }, [toast]);
 
-  const handleLaunch = () => {
+  const downloadModpack = useCallback(async () => {
+    setIsDownloading(true);
+    setProgress(0);
+    try {
+      const response = await window.electronAPI.downloadModpack(selectedVersion);
+      if (response.success) {
+        toast({
+          title: "Сборка загружена",
+          description: "Модпак успешно загружен и установлен.",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        throw new Error(response.error);
+      }
+    } catch (error) {
+      toast({
+        title: "Ошибка загрузки",
+        description: `Не удалось загрузить модпак: ${error.message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDownloading(false);
+      setProgress(0);
+    }
+  }, [selectedVersion, toast]);
+
+  const handleLaunch = useCallback(async () => {
     setIsLaunching(true);
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += 10;
-      setProgress(currentProgress);
-      if (currentProgress >= 100) {
-        clearInterval(interval);
-        setIsLaunching(false);
+    setProgress(0);
+    try {
+      const settings = await window.electronAPI.getMinecraftSettings() || {};
+      const launchResponse = await window.electronAPI.launchMinecraft(selectedVersion, settings);
+      if (launchResponse.success) {
         toast({
           title: "Minecraft запущен!",
           description: "Приятной игры!",
@@ -97,8 +126,40 @@ const MinecraftLauncher = () => {
           duration: 3000,
           isClosable: true,
         });
+      } else {
+        throw new Error(launchResponse.error);
       }
-    }, 500);
+    } catch (error) {
+      console.error('Error launching Minecraft:', error);
+      toast({
+        title: "Ошибка запуска",
+        description: `Не удалось запустить Minecraft: ${error.message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLaunching(false);
+      setProgress(0);
+    }
+  }, [selectedVersion, toast]);
+
+  useEffect(() => {
+    const progressHandler = (event, currentProgress) => {
+      setProgress(currentProgress);
+    };
+
+    window.electronAPI.onDownloadProgress(progressHandler);
+    window.electronAPI.onLaunchProgress(progressHandler);
+
+    return () => {
+      window.electronAPI.removeDownloadProgressListener(progressHandler);
+      window.electronAPI.removeLaunchProgressListener(progressHandler);
+    };
+  }, []);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
   };
 
   if (!user) {
@@ -106,27 +167,29 @@ const MinecraftLauncher = () => {
   }
 
   const MainLauncherContent = () => (
-    <Box
+    <Flex
+      direction="column"
       bg="rgba(0,0,0,0.7)"
       p={8}
       borderRadius="xl"
       boxShadow="xl"
       maxWidth="600px"
       width="90%"
+      height="auto"
     >
-      <VStack spacing={8} align="stretch">
-        <HStack justify="space-between" align="center">
-          <Image src="https://via.placeholder.com/50x50?text=MC" alt="Логотип Minecraft" />
+      <VStack spacing={6} align="stretch">
+        <Flex justify="space-between" align="center">
+          <Image src="https://via.placeholder.com/50x50?text=MC" alt="Логотип Minecraft" boxSize="50px" />
           <Heading color="white" size="lg">Лаунчер Minecraft</Heading>
           <Button leftIcon={<FaSignOutAlt />} onClick={handleLogout} colorScheme="red" size="sm">
             Выйти
           </Button>
-        </HStack>
+        </Flex>
         
-        <HStack>
-          <Avatar src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`} />
+        <Flex align="center">
+          <Avatar src={avatarSrc} mr={4} />
           <Text color="white">Добро пожаловать, {user.global_name || user.username}!</Text>
-        </HStack>
+        </Flex>
         
         <Box>
           <Text color="gray.300" mb={2}>Версия</Text>
@@ -143,6 +206,18 @@ const MinecraftLauncher = () => {
         </Box>
         
         <Button
+          leftIcon={<FaDownload />}
+          onClick={downloadModpack}
+          isLoading={isDownloading}
+          loadingText="Загрузка..."
+          colorScheme="blue"
+          size="lg"
+          width="full"
+        >
+          Загрузить сборку
+        </Button>
+
+        <Button
           leftIcon={<FaPlay />}
           onClick={handleLaunch}
           isLoading={isLaunching}
@@ -154,11 +229,11 @@ const MinecraftLauncher = () => {
           Играть
         </Button>
         
-        {isLaunching && (
+        {(isDownloading || isLaunching) && (
           <Progress value={progress} colorScheme="green" size="sm" />
         )}
         
-        <HStack justify="space-between">
+        <Flex justify="space-between">
           <Button leftIcon={<FaCog />} variant="outline" colorScheme="whiteAlpha" onClick={() => setIsSettingsOpen(true)}>
             Настройки
           </Button>
@@ -168,27 +243,37 @@ const MinecraftLauncher = () => {
           <Button leftIcon={<FaNewspaper />} variant="outline" colorScheme="whiteAlpha" onClick={() => setShowBlog(true)}>
             Блог
           </Button>
-        </HStack>
+        </Flex>
       </VStack>
-    </Box>
+    </Flex>
   );
 
   return (
-    <Box
+    <Flex
       bgImage="url('./fon.jpg')"
       bgSize="cover"
       bgPosition="center"
       h="100vh"
       w="100vw"
-      position="relative"
+      justify="center"
+      align="center"
+      overflow="hidden"
     >
       <Box
-        position="absolute"
-        top="50%"
-        left="50%"
-        transform="translate(-50%, -50%)"
-        maxHeight="80vh"
+        maxHeight="90vh"
         overflowY="auto"
+        css={{
+          '&::-webkit-scrollbar': {
+            width: '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            width: '6px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(255, 255, 255, 0.3)',
+            borderRadius: '24px',
+          },
+        }}
       >
         {showBlog ? (
           <ProjectBlog onBack={() => setShowBlog(false)} />
@@ -216,7 +301,7 @@ const MinecraftLauncher = () => {
           </ModalBody>
         </ModalContent>
       </Modal>
-    </Box>
+    </Flex>
   );
 };
 

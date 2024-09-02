@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -9,63 +9,68 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { FaDiscord } from 'react-icons/fa';
-const { ipcRenderer } = window.require('electron');
 
 const LoginPage = ({ onLogin }) => {
   const toast = useToast();
+  const authCompletedRef = useRef(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  const handleDiscordLogin = () => {
-    ipcRenderer.send('open-auth-window');
-  };
+  const handleDiscordLogin = useCallback(() => {
+    if (!isAuthenticating) {
+      setIsAuthenticating(true);
+      authCompletedRef.current = false;
+      window.electronAPI.discordAuth();
+    }
+  }, [isAuthenticating]);
 
-  // Слушаем результат авторизации
-  React.useEffect(() => {
-    const authResultListener = (event, result, profileData) => {
-      if (result === true) {
-        // Сохраняем полные данные профиля в хранилище
-        ipcRenderer.send('save-user-data', profileData);
-        
-        onLogin({ username: profileData.username });
-        toast({
-          title: "Вход выполнен успешно",
-          description: `Добро пожаловать, ${profileData.username}`,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      } else if (result === "no_guild") {
-        toast({
-          title: "Ошибка входа",
-          description: "Вы не состоите на сервере Discord!",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
+  const debouncedAuthHandler = useCallback((event, result, profileData) => {
+    if (authCompletedRef.current) return;
+
+    authCompletedRef.current = true;
+    setIsAuthenticating(false);
+
+    if (result === true) {
+      window.electronAPI.saveUserData(profileData);
+      onLogin(profileData);
+      toast({
+        title: "Вход выполнен успешно",
+        description: `Добро пожаловать, ${profileData.global_name || profileData.username}`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } else {
+      let errorMessage = "Не удалось войти через Discord";
+      if (result === "no_guild") {
+        errorMessage = "Вы не состоите на сервере Discord!";
       } else if (result === "no_role") {
-        toast({
-          title: "Ошибка входа",
-          description: "Вы не имеете доступа к лаунчеру, попросите доступ у администратора!",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-      } else {
-        toast({
-          title: "Ошибка входа",
-          description: "Не удалось войти через Discord",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
+        errorMessage = "Вы не имеете доступа к лаунчеру, попросите доступ у администратора!";
+      }
+      toast({
+        title: "Ошибка входа",
+        description: errorMessage,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [onLogin, toast]);
+
+  useEffect(() => {
+    const authResultListener = (event, ...args) => {
+      if (!authCompletedRef.current) {
+        debouncedAuthHandler(event, ...args);
       }
     };
 
-    ipcRenderer.on('auth-result', authResultListener);
+    window.electronAPI.onAuthResult(authResultListener);
 
     return () => {
-      ipcRenderer.removeListener('auth-result', authResultListener);
+      window.electronAPI.removeAuthResultListener(authResultListener);
+      authCompletedRef.current = false;
+      setIsAuthenticating(false);
     };
-  }, [onLogin, toast]);
+  }, [debouncedAuthHandler]);
 
   return (
     <Box
@@ -96,6 +101,8 @@ const LoginPage = ({ onLogin }) => {
             onClick={handleDiscordLogin}
             colorScheme="purple"
             size="lg"
+            isLoading={isAuthenticating}
+            loadingText="Авторизация..."
           >
             Войти через Discord
           </Button>
