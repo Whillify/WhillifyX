@@ -60,9 +60,9 @@ const BlogPost = ({ title, date, content, discord_link, tags, author }) => {
           </Flex>
         </Link>
       </Flex>
-      <HStack spacing={2} mb={2}>
+      <HStack spacing={2} mb={2} flexWrap="wrap">
         {tags.map((tag, index) => (
-          <Tag key={index} colorScheme={getTagColor(tag)}>
+          <Tag key={index} colorScheme={getTagColor(tag)} mb={1}>
             {tag}
           </Tag>
         ))}
@@ -92,7 +92,6 @@ const BlogPost = ({ title, date, content, discord_link, tags, author }) => {
     </Box>
   );
 };
-
 
 const getTagColor = (tag) => {
   switch (tag) {
@@ -143,7 +142,8 @@ const ProjectBlog = ({ onBack }) => {
       bg={bgColor}
       borderRadius="xl"
       boxShadow="xl"
-      width="800px"
+      width="100%"
+      maxWidth="800px"
       height="80vh"
       display="flex"
       flexDirection="column"
@@ -176,7 +176,7 @@ const ProjectBlog = ({ onBack }) => {
         }
       `}</style>
       <Flex direction="column" height="100%">
-        <Box p={8}>
+        <Box p={6}>
           <Button leftIcon={<FaArrowLeft />} onClick={onBack} mb={4}>
             Назад к лаунчеру
           </Button>
@@ -186,7 +186,7 @@ const ProjectBlog = ({ onBack }) => {
           <Divider mb={4} />
         </Box>
         
-        <Box overflowY="auto" flex={1} px={8} pb={8}>
+        <Box overflowY="auto" flex={1} px={6} pb={6}>
           {isLoading ? (
             <Text>Загрузка постов...</Text>
           ) : sortedPosts.length > 0 ? (
